@@ -65,9 +65,6 @@ class InitialConditions(fe.UserExpression):
 class StateEquationSolver():
     pass
 
-class AdjointEquationSolver():
-    pass
-
 
 def make_single_time_step(y_n=None):
     mesh, V = define_mesh()
