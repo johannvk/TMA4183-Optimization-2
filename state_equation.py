@@ -139,7 +139,7 @@ class StateEquationSolver():
         saved_steps = {}
 
         if save_to_file:
-            file = fe.File(f"state_equation/{filename}.pvd")
+            file = fe.File(f"results_state_equation/{filename}.pvd")
 
         t = 0.0
         self.y_n = self.initial_condition.copy()
