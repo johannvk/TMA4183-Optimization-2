@@ -1,4 +1,5 @@
 import fenics as fe
+
 # from fenics import dx
 
 import numpy as np
@@ -19,7 +20,7 @@ def define_unit_square_mesh(ndof=64):
 def Cahn_Hilliard_f(y, eps):
     return eps**2*(y**3 - y)
 
-
+'''
 def time_step_system(y_n, dt, t, eps=0.01, mesh=None, V=None, ndof=64):
     # V = fe.FunctionSpace(mesh, 'Lagrange', poly_degree)
 
@@ -48,6 +49,7 @@ def time_step_system(y_n, dt, t, eps=0.01, mesh=None, V=None, ndof=64):
     
     fe.solve(F_new == 0, y, solver_parameters={"newton_solver":{"relative_tolerance":1e-6}})
     return y
+'''
 
 
 class InitialConditions(fe.UserExpression):
@@ -56,7 +58,7 @@ class InitialConditions(fe.UserExpression):
         super().__init__(**kwargs)
 
     def eval(self, values, x):
-        values[0] = 0.63 + 0.5*(0.5 - random.random())
+        values[0] = -0.63 + 0.5*(0.5 - random.random())
 
     def value_shape(self):
         return []
@@ -65,7 +67,7 @@ class InitialConditions(fe.UserExpression):
 class StateEquationSolver():
 
     def __init__(self, mesh: fe.Mesh, function_space: fe.FunctionSpace, inital_condition: fe.Expression,
-                 spatial_control: fe.Function, T: float, steps=50, eps: float=1.0e-3):
+                 spatial_control: fe.Function, T: float, steps=50, eps: float=1):
         self.mesh = mesh
         self.V = function_space
 
@@ -90,7 +92,7 @@ class StateEquationSolver():
             self.spatial_control = fe.project(spatial_control, self.V)
 
         # Switch to true to visualize the spatial control:
-        if True:
+        if False:
             g_plot = fe.plot(self.spatial_control)
             # set  colormap
             g_plot.set_cmap("viridis")
@@ -110,12 +112,12 @@ class StateEquationSolver():
         self.time_V = fe.FunctionSpace(self.time_mesh, 'Lagrange', 2)
 
         self.eps_f_y = Cahn_Hilliard_f(self.y, self.eps)
-
+        self.y_n.assign(self.initial_condition.copy())
         # May avoid constructing the big linear form each time:
         self.A = ((self.y - self.y_n)/self.dt)*self.v*fe.dx \
                  + fe.inner(fe.grad(self.y), fe.grad(self.v))*fe.dx \
                  + self.eps_f_y*self.v*fe.dx
-
+        
         # Class parameters:
         self.newton_step_rel_tolerance = 1.0e-6
 
@@ -142,15 +144,14 @@ class StateEquationSolver():
             file = fe.File(f"results_state_equation/{filename}.pvd")
 
         t = 0.0
-        self.y_n = self.initial_condition.copy()
         for i in range(self.time_steps):
+
 
             if save_steps:
                 saved_steps[i] = (t, self.y_n.copy())
             
             if save_to_file:
                 file << (self.y_n, t)
-
             t += self.dt
 
             # TODO: Could integrate and find average between (t, t + delta_t) if we wish.
@@ -158,9 +159,11 @@ class StateEquationSolver():
             self.time_step_system(u_t=control_scale)
             self.y_n.assign(self.y)
 
+        i+=1
         # Save/Save last solution if wanted:
         if save_steps:
             saved_steps[i] = (t, self.y_n.copy())
+            self.saved_steps = saved_steps
             
         if save_to_file:
             file << (self.y_n, t)
@@ -191,7 +194,7 @@ class StateEquationSolver():
         plt.colorbar(p)
         plt.show()
 
-
+'''
 def make_single_time_step(y_n=None):
     mesh, V = define_unit_square_mesh()
 
@@ -200,7 +203,7 @@ def make_single_time_step(y_n=None):
         y_n = fe.interpolate(y_init_expr, V)
 
     time_step_system(y_n, dt=0.01, t=2, mesh=mesh, V=V)
-
+'''
 
 def print_mesh():
     mesh, V = define_unit_square_mesh()
@@ -209,21 +212,23 @@ def print_mesh():
     print(V)
 
 
-def main():
+def main(ndof = 64, T = 0.1, steps = 4, eps = 0.001):
 
     # Seems to jump to a "zero-solution" very quickly.
-    mesh, V = define_unit_square_mesh()
+    mesh, V = define_unit_square_mesh(ndof=ndof)
     init_cond = InitialConditions(degree=2)
 
     spatial_control = fe.Expression("sin(pi*x[0])*sin(pi*x[1])", degree=2)
     se_solver = StateEquationSolver(mesh=mesh, function_space=V, inital_condition=init_cond,
-                                    spatial_control=spatial_control, T=1.0, steps=20)
-    u_t = fe.Expression("5*x[0]", degree=1)
+                                    spatial_control=spatial_control, T=T, steps=steps, eps=eps)
+    u_t = fe.Expression("10", degree=1)
 
-    se_solver.solve(u_t, save_steps=False, save_to_file=True, filename="test_6_bump_control")
-    # se_solver.plot_solution()
+    #se_solver.plot_solution()
+    se_solver.solve(u_t, save_steps=True, save_to_file=False, filename="test_6_bump_control")
+    se_solver.plot_solution()
     print("What!")
 
+    return se_solver.saved_steps
 
 if __name__ == "__main__":
     main()
