@@ -1,5 +1,4 @@
 import fenics as fe
-
 # from fenics import dx
 
 import numpy as np
@@ -147,12 +146,12 @@ class StateEquationSolver():
 
         for i in range(self.time_steps):
 
-
             if save_steps:
                 saved_steps[i] = (t, self.y_n.copy())
             
             if save_to_file:
                 file << (self.y_n, t)
+
             t += self.dt
 
             # TODO: Could integrate and find average between (t, t + delta_t) if we wish.
@@ -160,8 +159,8 @@ class StateEquationSolver():
             self.time_step_system(u_t=control_scale)
             self.y_n.assign(self.y)
 
-        i+=1
         # Save/Save last solution if wanted:
+        i+=1
         if save_steps:
             saved_steps[i] = (t, self.y_n.copy())
             self.saved_steps = saved_steps
@@ -257,7 +256,6 @@ def main():
     # Without control, we should be able to see islands of the different phases developing.
     pass
 
-    return se_solver.saved_steps, mesh, V
 
 if __name__ == "__main__":
     main()

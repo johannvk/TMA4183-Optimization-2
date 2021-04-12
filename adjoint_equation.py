@@ -5,19 +5,6 @@ import matplotlib.pyplot as plt
 import state_equation
 
 
-'''
-class y_desired(fe.UserExpression):
-    # change this
-    def __init__(self, **kwargs):
-        random.seed(2)
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        values[0] = 0.63 + 0.5*(0.5 - random.random())
-
-    def value_shape(self):
-        return []
-'''
 def y_desired(degree):
     return fe.Expression("sin(pi*x[0])*sin(pi*x[1])", degree=degree)
 
@@ -25,7 +12,6 @@ class AdjointEquationSolver():
     def __init__(self, mesh: fe.Mesh, function_space: fe.FunctionSpace, T: float, steps:int=50, eps: float=1.0):
         self.mesh = mesh
         self.V = function_space
-
         self.p = fe.Function(self.V)
 
         # Linear 'Test'-function:
@@ -108,24 +94,59 @@ class AdjointEquationSolver():
         plt.show()
 
 
+
+
+def island_init_cond(ndof=64,T=0.05,steps=10,eps=0.1):
+    
+    # --- We first solve the state equation
+    mesh, V = state_equation.define_unit_square_mesh(ndof = ndof)
+    init_cond = state_equation.UnitSquareIslandIC(degree=3)
+    #spatial_control = fe.Expression("sin(pi*x[0])*sin(pi*x[1])", degree=3)
+    spatial_control = fe.Expression("5*(x[0] - 0.5)", degree=2)
+    se_solver = state_equation.StateEquationSolver(spatial_function_space=V, inital_condition=init_cond,
+                                    spatial_control=spatial_control, T=T, steps=steps, eps=eps)
+    u_t = fe.Expression("10*sin(2*pi*x[0]/0.1)", degree=3)
+    se_solver.solve(u_t, save_steps=True, save_to_file=True, filename="unit_island_ramp_control_IC_1")
+    se_solver.plot_solution()
+
+    # --- Now for the adjoint part:
+    ae_solver = AdjointEquationSolver(mesh=mesh, function_space=V, T=T, steps=steps, eps=eps)
+    ae_solver.load_y(se_solver.saved_steps)
+    #ae_solver.plot_solution() # For visualizing final p
+    ae_solver.solve(save_steps=False, save_to_file=False, filename="unit_island_ramp_control_IC_1")
+    ae_solver.plot_solution()
+    print("Done")
+
+def random_init_cond(ndof=64,T=1.0,steps=10,eps=0.1):
+
+    # --- We first solve the state equation
+    mesh, V = state_equation.define_unit_square_mesh(ndof = ndof)
+    init_cond = state_equation.RandomNoiseIC(degree=3)
+    spatial_control = fe.Expression("5*(x[0] - 0.5)", degree=2)
+    se_solver = state_equation.StateEquationSolver(spatial_function_space=V, inital_condition=init_cond,
+                                    spatial_control=spatial_control, T=T, steps=steps, eps=eps,
+                                    visualize_spatial_control=False)
+    u_t = fe.Expression("5*x[0]", degree=1)
+    se_solver.solve(u_t, save_steps=True, save_to_file=False, filename="random_IC_1")
+    se_solver.plot_solution()
+
+    # --- Now for the adjoint part:
+    ae_solver = AdjointEquationSolver(mesh=mesh, function_space=V, T=T, steps=steps, eps=eps)
+    ae_solver.load_y(se_solver.saved_steps)
+    #ae_solver.plot_solution() # For visualizing final p
+    ae_solver.solve(save_steps=False, save_to_file=False, filename="random_IC_1")
+    ae_solver.plot_solution()
+    print("Done")
+
 def main():
     ndof=64
-    T = 0.1
-    steps = 8
-    eps = 0.01
-    
-    saved_steps, mesh, V = state_equation.main(ndof, T, steps, eps=eps)
+    T = 1.0
+    steps = 10
+    eps = 0.1
 
-    mesh, V = state_equation.define_unit_square_mesh(ndof = ndof)
-
-    ae_solver = AdjointEquationSolver(mesh=mesh, function_space=V, T=T, steps=steps, eps=eps)
-
-    ae_solver.load_y(saved_steps)
-    #ae_solver.plot_solution()
-    ae_solver.solve(save_steps=False, save_to_file=False, filename="test_6_bump_control")
-    ae_solver.plot_solution()
-    print("What!")
-
+    random_init_cond(ndof,T,steps,eps)
+    island_init_cond()
+    print('we are done now')
 
 if __name__ == "__main__":
     main()
