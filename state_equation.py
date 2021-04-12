@@ -244,7 +244,7 @@ def random_init_cond():
     print("Done!")
 
     
-def main():
+def state_equation_main():
 
     # random_init_cond()
     island_init_cond()
@@ -256,4 +256,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    state_equation_main()
+
