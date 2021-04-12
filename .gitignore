@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 results_state_equation/
+results_adjoint_equation/
