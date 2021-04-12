@@ -128,4 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# Store results:
 results_state_equation/
+
+# Test code:
+test_code.py
