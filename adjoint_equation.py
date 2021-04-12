@@ -55,7 +55,7 @@ class AdjointEquationSolver():
         yN.assign(self.y[self.time_steps][1])
 
         self.p_n = fe.Function(self.V)
-        self.p_n.assign(yN.copy() - 0*y_d.copy()) # 0* temporarily to have it run. I have no clue why it wont work without 0*, as the function spaces are identical.
+        self.p_n.assign(yN.copy() - y_d.copy())
 
     def solve(self, save_steps=True, save_to_file=False, filename=''):
 
@@ -114,7 +114,7 @@ def main():
     steps = 8
     eps = 0.01
     
-    saved_steps = state_equation.main(ndof, T, steps, eps=eps)
+    saved_steps, mesh, V = state_equation.main(ndof, T, steps, eps=eps)
 
     mesh, V = state_equation.define_unit_square_mesh(ndof = ndof)
 
