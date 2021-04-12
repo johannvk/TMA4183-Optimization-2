@@ -16,38 +16,8 @@ def define_unit_square_mesh(ndof=64):
     return (mesh, V)
 
 
-def Cahn_Hilliard_f(y, eps):
+def Allen_Cahn_f(y, eps):
     return eps**2*(y**3 - y)
-
-
-def time_step_system(y_n, dt, t, eps=0.01, mesh=None, V=None, ndof=64):
-    # V = fe.FunctionSpace(mesh, 'Lagrange', poly_degree)
-
-    # Do not need to specify Homogeneous Neumann BC's:
-    # They are the default in FEniCS if no other BC is given.
-    
-    # As the problem is Non-Linear, we need to use 
-    # 'Function' instead of 'TrialFunction'.
-    y = fe.Function(V)
-
-    # Our Linear test function:
-    v = fe.TestFunction(V)
-
-    # Control function g:
-    g = fe.Expression("x[0] - x[1]*x[1] + 5*t", degree=2, t=t)
-    
-    # Does not work yet:
-    # y_n_interp = fe.Function(V).interpolate(y_n)
-    # l = dt*g*v*fe.dx + y_n_interp*v*fe.dx
-    # a = u*v*fe.dx + dt*fe.inner(fe.grad(u), fe.grad(v))*fe.dx + \
-    #     dt*eps**2*(u**3 - u)*v*fe.dx
-    # F = a - l
-
-    F_new = ((y - y_n)/dt)*v*fe.dx + fe.inner(fe.grad(y), fe.grad(v))*fe.dx \
-            + eps**2*(y**3 - y)*v*fe.dx - g*v*fe.dx
-    
-    fe.solve(F_new == 0, y, solver_parameters={"newton_solver":{"relative_tolerance":1e-6}})
-    return y
 
 
 class UnitSquareIslandIC(fe.UserExpression):
@@ -83,53 +53,43 @@ class RandomNoiseIC(fe.UserExpression):
 
 
 class StateEquationSolver():
+    def set_function(self, v, V):
+        return v if isinstance(v, fe.Function) else fe.interpolate(v, V)
 
-    def __init__(self, mesh: fe.Mesh, function_space: fe.FunctionSpace, inital_condition: fe.Expression,
-                 spatial_control: fe.Function, T: float, steps=50, eps: float=1.0e-3):
-        self.mesh = mesh
-        self.V = function_space
+    def __init__(self, spatial_function_space: fe.FunctionSpace, inital_condition: fe.Expression,
+                 spatial_control: fe.Function, T: float, steps=50, eps: float=1.0e-3,
+                 visualize_spatial_control=False, temporal_function_space: fe.FunctionSpace=None):
 
-        # As the PDE is Non-Linear, we need to use 
-        # 'Function' instead of 'TrialFunction'. 
+        self.V = spatial_function_space
+
+        # As the Cahn-Hillard PDE is Non-Linear, we need to use 
+        # 'Function' instead of 'TrialFunction' for the state y. 
         self.y = fe.Function(self.V)
         self.y_n = fe.Function(self.V)
 
         # Linear 'Test'-function:
         self.v = fe.TestFunction(self.V)
 
-        if isinstance(inital_condition, fe.Function):
-            self.initial_condition = inital_condition
-        else:
-            # Assume we got an fe.Expression object:
-            self.initial_condition = fe.interpolate(inital_condition, self.V)
+        self.initial_condition = self.set_function(inital_condition, self.V)
         
-        if isinstance(spatial_control, fe.Function):
-            self.spatial_control = spatial_control.copy()
-        else:
-            # Assume we got an fe.Expression object:
-            self.spatial_control = fe.project(spatial_control, self.V)
-
-        # Switch to true to visualize the spatial control:
-        if True:
-            g_plot = fe.plot(self.spatial_control)
-            # set  colormap
-            g_plot.set_cmap("viridis")
-            # add a title to the  plot:
-            plt.title("Spatial Control of solution.")
-            # add a colorbar:
-            plt.colorbar(g_plot)
-            plt.show()
-
-        self.eps = eps
+        self.spatial_control = self.set_function(spatial_control, self.V)
 
         # Time parameters:
         self.T = T
         self.time_steps = steps
         self.dt = self.T/self.time_steps
-        self.time_mesh = fe.IntervalMesh(self.time_steps, 0.0, self.T)
-        self.time_V = fe.FunctionSpace(self.time_mesh, 'Lagrange', 2)
 
-        self.eps_f_y = Cahn_Hilliard_f(self.y, self.eps)
+        if temporal_function_space is None:
+            # As many intervals in the Time-Interval function space 
+            # as there are time steps:
+            self.time_mesh = fe.IntervalMesh(self.time_steps, 0.0, self.T)
+            self.time_V = fe.FunctionSpace(self.time_mesh, 'Lagrange', 3)
+        else:
+            self.time_V = temporal_function_space
+
+        # Allen-Cahn parameters:
+        self.eps = eps
+        self.eps_f_y = Allen_Cahn_f(self.y, self.eps)
 
         # May avoid constructing the big linear form each time step:
         self.A = ((self.y - self.y_n)/self.dt)*self.v*fe.dx \
@@ -145,6 +105,17 @@ class StateEquationSolver():
         
         # Class parameters:
         self.newton_step_rel_tolerance = 1.0e-6
+
+        # Switch to true to visualize the spatial control:
+        if visualize_spatial_control:
+            g_plot = fe.plot(self.spatial_control)
+            # set  colormap
+            g_plot.set_cmap("viridis")
+            # add a title to the  plot:
+            plt.title("Spatial Control of solution.")
+            # add a colorbar:
+            plt.colorbar(g_plot)
+            plt.show()
 
     def control_expr(self, t):
         # Return spatial control at time t.
@@ -218,20 +189,11 @@ class StateEquationSolver():
         p.set_cmap("viridis")
 
         # add a title to the  plot:
-        plt.title("Cahn - Hilliard  solution")
+        plt.title("Allen-Cahn solution")
         # add a colorbar:
         plt.colorbar(p)
         plt.show()
 
-
-def make_single_time_step(y_n=None):
-    mesh, V = define_unit_square_mesh()
-
-    if y_n is None:
-        y_init_expr = fe.Expression("0.2 - x[0] + x[1]", degree=2)
-        y_n = fe.interpolate(y_init_expr, V)
-
-    time_step_system(y_n, dt=0.01, t=2, mesh=mesh, V=V)
 
 
 def print_mesh():
@@ -248,13 +210,15 @@ def island_init_cond():
 
     init_cond = UnitSquareIslandIC(degree=3)
 
-    spatial_control = fe.Expression("sin(pi*x[0])*sin(pi*x[1])", degree=3)
-    se_solver = StateEquationSolver(mesh=mesh, function_space=V, inital_condition=init_cond,
-                                    spatial_control=spatial_control, T=0.1, steps=10, eps=0.1)
+    # spatial_control = fe.Expression("sin(pi*x[0])*sin(pi*x[1])", degree=3)
+    spatial_control = fe.Expression("5*(x[0] - 0.5)", degree=2)
+
+    se_solver = StateEquationSolver(spatial_function_space=V, inital_condition=init_cond,
+                                    spatial_control=spatial_control, T=0.05, steps=10, eps=0.1)
     
     u_t = fe.Expression("10*sin(2*pi*x[0]/0.1)", degree=3)
 
-    se_solver.solve(u_t, save_steps=False, save_to_file=True, filename="unit_island_IC_1")
+    se_solver.solve(u_t, save_steps=False, save_to_file=True, filename="unit_island_ramp_control_IC_1")
     se_solver.plot_solution()
     
     print("Done!")    
@@ -267,21 +231,23 @@ def random_init_cond():
 
     init_cond = RandomNoiseIC(degree=3)
  
-    spatial_control = fe.Expression("x[0] < 0.5 ? 1.0 : -1", degree=2)
-    se_solver = StateEquationSolver(mesh=mesh, function_space=V, inital_condition=init_cond,
-                                    spatial_control=spatial_control, T=0.1, steps=10, eps=0.1)
-    
+    spatial_control = fe.Expression("5*(x[0] - 0.5)", degree=2)
+    se_solver = StateEquationSolver(spatial_function_space=V, inital_condition=init_cond,
+                                    spatial_control=spatial_control, T=1.0, steps=10, eps=0.1,
+                                    visualize_spatial_control=False)
+
     # Ramp up intensity of control:
     u_t = fe.Expression("5*x[0]", degree=1)
 
     se_solver.solve(u_t, save_steps=False, save_to_file=True, filename="random_IC_1")
     se_solver.plot_solution()
     print("Done!")
+
     
 def main():
 
     # random_init_cond()
-    # island_init_cond()
+    island_init_cond()
 
     # Phase field solutions:
     # Have zero control. Perturbed zero-solution. "Checkerboard" inital condition.
