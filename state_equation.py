@@ -160,8 +160,10 @@ class StateEquationSolver():
             self.y_n.assign(self.y)
 
         # Save/Save last solution if wanted:
+        i+=1
         if save_steps:
             saved_steps[i] = (t, self.y_n.copy())
+            self.saved_steps = saved_steps
             
         if save_to_file:
             file << (self.y_n, t)
