@@ -50,13 +50,33 @@ def time_step_system(y_n, dt, t, eps=0.01, mesh=None, V=None, ndof=64):
     return y
 
 
-class InitialConditions(fe.UserExpression):
+class UnitSquareIslandIC(fe.UserExpression):
     def __init__(self, **kwargs):
         random.seed(2)
         super().__init__(**kwargs)
 
     def eval(self, values, x):
-        values[0] = 0.63 + 0.5*(0.5 - random.random())
+        # Homogeneous Neumann Conditions must be respected!
+        # values[0] = 0.63 + 0.5*(0.5 - random.random())
+        if 0.4 <= x[0] <= 0.6 and 0.4 <= x[1] <= 0.6:
+            values[0] = 1.0
+        else:
+            values[0] = 0.0
+
+    def value_shape(self):
+        return []
+
+
+class RandomNoiseIC(fe.UserExpression):
+    def __init__(self, **kwargs):
+        random.seed(2)
+        super().__init__(**kwargs)
+
+    def eval(self, values, x):
+        # Homogeneous Neumann Conditions must be respected!
+        # Rock the boat between [-1.0, 1.0]:
+        value = 0.63 + 0.25*(0.5 - random.random())
+        values[0] = max(min(value, 1.0), -1.0)
 
     def value_shape(self):
         return []
@@ -111,11 +131,18 @@ class StateEquationSolver():
 
         self.eps_f_y = Cahn_Hilliard_f(self.y, self.eps)
 
-        # May avoid constructing the big linear form each time:
+        # May avoid constructing the big linear form each time step:
         self.A = ((self.y - self.y_n)/self.dt)*self.v*fe.dx \
                  + fe.inner(fe.grad(self.y), fe.grad(self.v))*fe.dx \
                  + self.eps_f_y*self.v*fe.dx
+        
+        self.u_t = fe.Constant(-1.0)
+        self.l = self.u_t*self.spatial_control*self.v*fe.dx
 
+        self.F = self.A - self.l
+        self.dy = fe.TrialFunction(self.V)
+        self.Jacobian = fe.derivative(self.F, self.y, self.dy)
+        
         # Class parameters:
         self.newton_step_rel_tolerance = 1.0e-6
 
@@ -142,7 +169,10 @@ class StateEquationSolver():
             file = fe.File(f"results_state_equation/{filename}.pvd")
 
         t = 0.0
-        self.y_n = self.initial_condition.copy()
+
+        # Set up the inital condition for y_n for the first round:
+        self.y_n.assign(self.initial_condition)
+
         for i in range(self.time_steps):
 
             if save_steps:
@@ -154,7 +184,7 @@ class StateEquationSolver():
             t += self.dt
 
             # TODO: Could integrate and find average between (t, t + delta_t) if we wish.
-            control_scale = temporal_control(t)
+            control_scale = u_t(t)
             self.time_step_system(u_t=control_scale)
             self.y_n.assign(self.y)
 
@@ -170,13 +200,15 @@ class StateEquationSolver():
     def time_step_system(self, u_t):
         # Do not need to specify Homogeneous Neumann BC's:
         # They are the default in FEniCS if no other BC is given.
-        
-        # Spatial control function g:
-        g = self.spatial_control
-        l = u_t*g*self.v*fe.dx
 
-        F = self.A - l        
-        fe.solve(F == 0, self.y, solver_parameters={"newton_solver":{"relative_tolerance":1e-6}})
+        self.u_t.assign(u_t)
+        fe.solve(self.F == 0, self.y, J=self.Jacobian,
+                solver_parameters={"newton_solver":
+                                    {
+                                        "relative_tolerance":
+                                        self.newton_step_rel_tolerance
+                                    }
+                                   })
 
     def plot_solution(self):
         print("Plotting final solution:")
@@ -184,9 +216,9 @@ class StateEquationSolver():
 
         # set  colormap
         p.set_cmap("viridis")
-        # p.set_clim(0, 1.0)
+
         # add a title to the  plot:
-        plt.title("Cahn -Hilliard  solution")
+        plt.title("Cahn - Hilliard  solution")
         # add a colorbar:
         plt.colorbar(p)
         plt.show()
@@ -209,20 +241,52 @@ def print_mesh():
     print(V)
 
 
-def main():
+def island_init_cond():
+    
+    # Seems to jump to a "zero-solution" very quickly.
+    mesh, V = define_unit_square_mesh()
+
+    init_cond = UnitSquareIslandIC(degree=3)
+
+    spatial_control = fe.Expression("sin(pi*x[0])*sin(pi*x[1])", degree=3)
+    se_solver = StateEquationSolver(mesh=mesh, function_space=V, inital_condition=init_cond,
+                                    spatial_control=spatial_control, T=0.1, steps=10, eps=0.1)
+    
+    u_t = fe.Expression("10*sin(2*pi*x[0]/0.1)", degree=3)
+
+    se_solver.solve(u_t, save_steps=False, save_to_file=True, filename="unit_island_IC_1")
+    se_solver.plot_solution()
+    
+    print("Done!")    
+
+
+def random_init_cond():
 
     # Seems to jump to a "zero-solution" very quickly.
     mesh, V = define_unit_square_mesh()
-    init_cond = InitialConditions(degree=2)
 
-    spatial_control = fe.Expression("sin(pi*x[0])*sin(pi*x[1])", degree=2)
+    init_cond = RandomNoiseIC(degree=3)
+ 
+    spatial_control = fe.Expression("x[0] < 0.5 ? 1.0 : -1", degree=2)
     se_solver = StateEquationSolver(mesh=mesh, function_space=V, inital_condition=init_cond,
-                                    spatial_control=spatial_control, T=1.0, steps=20)
+                                    spatial_control=spatial_control, T=0.1, steps=10, eps=0.1)
+    
+    # Ramp up intensity of control:
     u_t = fe.Expression("5*x[0]", degree=1)
 
-    se_solver.solve(u_t, save_steps=False, save_to_file=True, filename="test_6_bump_control")
-    # se_solver.plot_solution()
-    print("What!")
+    se_solver.solve(u_t, save_steps=False, save_to_file=True, filename="random_IC_1")
+    se_solver.plot_solution()
+    print("Done!")
+    
+def main():
+
+    # random_init_cond()
+    # island_init_cond()
+
+    # Phase field solutions:
+    # Have zero control. Perturbed zero-solution. "Checkerboard" inital condition.
+    # Without control, we should be able to see islands of the different phases developing.
+    pass
 
 
 if __name__ == "__main__":
