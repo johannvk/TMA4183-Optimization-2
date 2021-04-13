@@ -62,19 +62,20 @@ class AllenCahnOptimizer():
         # going in to the objective at a later point:
 
         if y_T is None and u_t is None:
-            # Use current value of 'self.u_t':
+            # Use current value of 'self.u_t', which does not need to be changed.
             # Run forward and find self.y_T:
             y_T = self.state_equation.solve(temporal_control=self.u_t,
                                             save_steps=save_steps, save_to_file=False)
         
         elif y_T is not None and u_t is not None:
-            # y_T does not need to be calculated: 
+            # y_T does not need to be calculated, is given. 
+            # Update 'self.u_t':
             self.u_t.assign(u_t)
         
         else:
             raise ValueError("Objective called with only one of the group-optional arguments 'y_T' and 'u_t'.")
 
-        # Assign new function for the end time and the temporal control:
+        # Assign new function for the end time:
         self.y_T.assign(y_T)
 
         return fe.assemble(self.J*fe.dx)

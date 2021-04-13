@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 
 from typing import Union
 
+# Local imports:
+from problem_definitions import UnitSquareIslandIC, RandomNoiseIC
+
 
 def define_unit_square_mesh(ndof=64):
     poly_degree = 2
@@ -17,38 +20,6 @@ def define_unit_square_mesh(ndof=64):
 
 def Allen_Cahn_f(y, eps):
     return eps**2*(y**3 - y)
-
-
-class UnitSquareIslandIC(fe.UserExpression):
-    def __init__(self, **kwargs):
-        random.seed(2)
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        # Homogeneous Neumann Conditions must be respected!
-        # values[0] = 0.63 + 0.5*(0.5 - random.random())
-        if 0.4 <= x[0] <= 0.6 and 0.4 <= x[1] <= 0.6:
-            values[0] = 1.0
-        else:
-            values[0] = 0.0
-
-    def value_shape(self):
-        return []
-
-
-class RandomNoiseIC(fe.UserExpression):
-    def __init__(self, **kwargs):
-        random.seed(2)
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        # Homogeneous Neumann Conditions must be respected!
-        # Rock the boat between [-1.0, 1.0]:
-        value = 0.63 + 0.25*(0.5 - random.random())
-        values[0] = max(min(value, 1.0), -1.0)
-
-    def value_shape(self):
-        return []
 
 
 class StateEquationSolver():

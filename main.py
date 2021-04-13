@@ -1,5 +1,10 @@
-from adjoint_equation import *
-from state_equation import *
+# from adjoint_equation import *
+# from state_equation import *
+from optimizer import AllenCahnOptimizer
+
+
+def make_optimizer():
+    pass
 
 
 def main():
