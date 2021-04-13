@@ -7,15 +7,8 @@ import matplotlib.pyplot as plt
 from typing import Union
 
 # Local imports:
-from problem_definitions import UnitSquareIslandIC, RandomNoiseIC
+from problem_definitions import UnitSquareIslandIC, RandomNoiseIC, define_unit_square_mesh
 
-
-def define_unit_square_mesh(ndof=64):
-    poly_degree = 2
-    mesh = fe.UnitSquareMesh(ndof, ndof)
-
-    V = fe.FunctionSpace(mesh, 'Lagrange', poly_degree)
-    return (mesh, V)
 
 
 def Allen_Cahn_f(y, eps):
@@ -124,12 +117,13 @@ class StateEquationSolver():
             if save_to_file:
                 file << (self.y_n, t)
 
-            t += self.dt
-
             # TODO: Could integrate and find average between (t, t + delta_t) if we wish.
             control_scale = u_t(t)
             self.time_step_system(u_t=control_scale)
             self.y_n.assign(self.y)
+            
+            # Progress in time:
+            t += self.dt
 
         # Save/Save last solution if wanted:
         i+=1
@@ -168,13 +162,6 @@ class StateEquationSolver():
         plt.colorbar(p)
         plt.show()
 
-
-
-def print_mesh():
-    mesh, V = define_unit_square_mesh()
-    fe.plot(mesh)
-    plt.show()
-    print(V)
 
 
 def island_init_cond():

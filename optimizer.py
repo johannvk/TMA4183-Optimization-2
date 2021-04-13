@@ -5,9 +5,10 @@ from adjoint_equation import AdjointEquationSolver
 from state_equation import StateEquationSolver
 
 
+
 class AllenCahnOptimizer():
 
-    def __init__(self, y_d: fe.Expression, y_0: fe.Expression, u_0: fe.Expression, 
+    def __init__(self, y_d: fe.Expression, y_0: fe.UserExpression, u_0: fe.Expression, 
                  spatial_control: fe.Expression, spatial_function_space: fe.FunctionSpace, 
                  eps=1.0e-1, alpha=0.1, T=1.0, time_steps=10):
         # Phase 'strength':
@@ -25,6 +26,8 @@ class AllenCahnOptimizer():
 
         # Function space of the spatial domain Omega.
         self.V = spatial_function_space
+        # Set spatial control function:
+        self.g = self.set_function(spatial_control, self.V)
 
         # Desired distribution of the state variable:
         self.y_d = self.set_function(y_d, self.V) 
@@ -34,12 +37,12 @@ class AllenCahnOptimizer():
         self.y_T = fe.Function(self.V)
 
         # Intial guess for the control function u(t):
-        self.u_t = self.set_function(u_0, self.V)
-        self.g = self.set_function(spatial_control, self.V)
-
+        self.u_t = self.set_function(u_0, self.time_V)
+        
         # Objective for the optimizer:
         self.alpha = alpha
-        self.J = 0.5*(self.y_T - self.y_d)**2 + 0.5*self.alpha*(self.u_t)**2
+        self.J_y = 0.5*(self.y_T - self.y_d)**2*fe.dx
+        self.J_u = 0.5*self.alpha*(self.u_t)**2*fe.dx
 
         # State equation solver:
         self.state_equation = StateEquationSolver(
@@ -49,13 +52,15 @@ class AllenCahnOptimizer():
                                )
 
         # Adjoint equation solver:
-        self.state_equation = AdjointEquationSolver(
+        self.adjoint_equation = AdjointEquationSolver(
                                spatial_function_space=self.V, y_desired=self.y_d,
                                T=self.T, steps=self.time_steps,
                                eps=self.eps, temporal_function_space=self.time_V
                                )
 
-        
+    @classmethod
+    def from_dict(cls, init_dict):
+        return cls(**init_dict)
     
     def objective(self, y_T: fe.Function=None, u_t: fe.Function=None, save_steps=False):
         # Need to be careful not to overwrite any of the functions
@@ -78,7 +83,7 @@ class AllenCahnOptimizer():
         # Assign new function for the end time:
         self.y_T.assign(y_T)
 
-        return fe.assemble(self.J*fe.dx)
+        return fe.assemble(self.J_y) + fe.assemble(self.J_u)
 
     def set_function(self, v, V):
         return v if isinstance(v, fe.Function) else fe.interpolate(v, V)

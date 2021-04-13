@@ -11,6 +11,13 @@ import random
 #  'y_initial': fe.Expression,
 # }
 
+def define_unit_square_mesh(ndof=64):
+    poly_degree = 2
+    mesh = fe.UnitSquareMesh(ndof, ndof)
+
+    V = fe.FunctionSpace(mesh, 'Lagrange', poly_degree)
+    return (mesh, V)
+
 
 class UnitSquareIslandIC(fe.UserExpression):
     def __init__(self, **kwargs):
