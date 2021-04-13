@@ -1,5 +1,4 @@
 import fenics as fe
-# from fenics import dx
 
 import numpy as np
 import random
@@ -75,6 +74,8 @@ class StateEquationSolver():
         self.spatial_control = self.set_function(spatial_control, self.V)
 
         # Time parameters:
+        # TODO: Use a time-steps array instead:
+        # Share between all solvers. Very concrete!
         self.T = T
         self.time_steps = steps
         self.dt = self.T/self.time_steps
@@ -246,7 +247,7 @@ def random_init_cond():
     print("Done!")
 
     
-def main():
+def state_main():
 
     # random_init_cond()
     island_init_cond()
@@ -258,4 +259,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    state_main()
