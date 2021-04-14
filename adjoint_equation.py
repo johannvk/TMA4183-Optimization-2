@@ -86,8 +86,8 @@ class AdjointEquationSolver():
         # self.p_n = fe.Function(self.V)
         self.p_n.assign(yN.copy() - y_d.copy())
 
-    def solve(self, save_steps=True, save_to_file=False, filename=''):
-        # Call 'load_y()' before solving.
+    def solve(self, save_steps=True, save_to_file=False, filename='', verbose=False):
+        # Need to call 'load_y()' before solving.
 
         saved_steps = {}
 
@@ -124,7 +124,9 @@ class AdjointEquationSolver():
         # Do not need to specify Homogeneous Neumann BC's:
         # They are the default in FEniCS if no other BC is given.
         # The equation is linear in 'p':
-        fe.solve(self.a == self.L, self.p_sol) # solver_parameters={"newton_solver":{"relative_tolerance":1e-6}})
+        solver_parameters = {"linear_solver": "lu"}
+        fe.solve(self.a == self.L, self.p_sol, 
+                 solver_parameters=solver_parameters)
 
     def plot_solution(self):
         print('Plotting solution for t=0')

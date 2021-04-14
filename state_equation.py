@@ -71,6 +71,9 @@ class StateEquationSolver():
         # Class parameters:
         self.newton_step_rel_tolerance = 1.0e-6
 
+        # Initialize the storage for the saved state equation steps:
+        self.saved_steps = None
+
         # Switch to true to visualize the spatial control:
         if visualize_spatial_control:
             g_plot = fe.plot(self.spatial_control)
