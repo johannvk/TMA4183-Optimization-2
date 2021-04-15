@@ -1,12 +1,8 @@
 import fenics as fe
 import numpy as np
-import sys
-import os
-import io
 
 from adjoint_equation import AdjointEquationSolver
 from state_equation import StateEquationSolver
-from shut_up_fenics import stdout_redirector as mute
 
 
 class AllenCahnGradient(fe.UserExpression):
@@ -139,7 +135,7 @@ class AllenCahnOptimizer():
         self.gradient_function: fe.Function = fe.Function(self.time_V)
         
         # line search initial step length
-        self.alpha = 1.0 
+        self.alpha = 1 
 
     @classmethod
     def from_dict(cls, init_dict):
@@ -164,7 +160,8 @@ class AllenCahnOptimizer():
         if u_t is None:
             u_t = self.u_t
         else:
-            self.u_t.assign(u_t)
+            #self.u_t.assign(u_t)
+            self.u_t = self.set_function(u_t, self.V) 
 
         if y_T is None:
             # Calculate new value for y_T
@@ -206,25 +203,26 @@ class AllenCahnOptimizer():
         self.u_t is updated with new values'''
         max_iter=10
         c = 0.5
-        with mute():
-            old_evaluation = self.objective(self.y_T) # assumes self.y_T is correct
+        old_evaluation = self.objective(self.y_T) # assumes self.y_T is correct
         print(f'old evaluation: {old_evaluation}')
         old_u_t = self.u_t.copy()
-        new_u_t = old_u_t.copy()
-        step = self.gradient_function
         for i in range(max_iter):
-            step.assign(-self.alpha*self.gradient_function)
-            new_u_t.assign(old_u_t + step)
-            new_u_t = new_u_t.copy()
-            with mute():
-                new_evaluation = self.objective(u_t = new_u_t)
+            print(isinstance(old_u_t, fe.Function))
+            print(old_u_t)
+            print(isinstance(self.alpha*self.gradient_function, fe.Function))
+            new_u_t = self.alpha*self.gradient_function
+            new_u_t = -new_u_t + old_u_t
+            print(isinstance(new_u_t, fe.Function))
+            new_u_t = self.set_function(new_u_t, self.V)
+            self.u_t.assign(new_u_t)
+            #quit()
+            new_evaluation = self.objective(u_t = old_u_t - self.alpha*self.gradient_function)
             print(f'new evaluation: {new_evaluation}')
             #if armijo condition satisfied:
-            if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.gradient_function*fe.dx):
+            if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.graident_function*fe.dx):
                 #be happy, perhaps set new vaiables
                 #self.u_t already set in self.objective :)
                 print(f'Accepted alpha: {self.alpha}')
-                #self.alpha *= 2
                 break
             else:
                 self.alpha /= 2
@@ -232,10 +230,9 @@ class AllenCahnOptimizer():
             raise ValueError(f"Line seach did not satisfy armijo conditions in {max_iter} steps.")
 
     def optimize(self):
-        max_iter=10
+        max_iter=3
         for i in range(max_iter):
-            with mute():
-                self.calculate_gradient()
+            self.calculate_gradient()
             self.line_search()
             #TODO: implement stopping conditino
 

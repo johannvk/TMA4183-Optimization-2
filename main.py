@@ -29,7 +29,8 @@ def make_example_optimizer():
     }
 
     allen_cahn_optimizer = AllenCahnOptimizer.from_dict(init_dict)
-
+    allen_cahn_optimizer.optimize()
+    '''
     J0 = allen_cahn_optimizer.objective()
     print("J0:", J0)
     allen_cahn_optimizer.calculate_gradient()
@@ -52,12 +53,12 @@ def make_example_optimizer():
     plt.show()
     
     pass
+    '''
 
 
 def main():
     make_example_optimizer()
     pass
-
 
 if __name__ == "__main__":
     main()
