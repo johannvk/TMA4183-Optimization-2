@@ -1,5 +1,4 @@
 import fenics as fe
-# from fenics import dx
 
 import numpy as np
 import random
@@ -7,49 +6,13 @@ import matplotlib.pyplot as plt
 
 from typing import Union
 
+# Local imports:
+from problem_definitions import UnitSquareIslandIC, RandomNoiseIC, define_unit_square_mesh
 
-def define_unit_square_mesh(ndof=64):
-    poly_degree = 2
-    mesh = fe.UnitSquareMesh(ndof, ndof)
-
-    V = fe.FunctionSpace(mesh, 'Lagrange', poly_degree)
-    return (mesh, V)
 
 
 def Allen_Cahn_f(y, eps):
     return eps**2*(y**3 - y)
-
-
-class UnitSquareIslandIC(fe.UserExpression):
-    def __init__(self, **kwargs):
-        random.seed(2)
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        # Homogeneous Neumann Conditions must be respected!
-        # values[0] = 0.63 + 0.5*(0.5 - random.random())
-        if 0.4 <= x[0] <= 0.6 and 0.4 <= x[1] <= 0.6:
-            values[0] = 1.0
-        else:
-            values[0] = 0.0
-
-    def value_shape(self):
-        return []
-
-
-class RandomNoiseIC(fe.UserExpression):
-    def __init__(self, **kwargs):
-        random.seed(2)
-        super().__init__(**kwargs)
-
-    def eval(self, values, x):
-        # Homogeneous Neumann Conditions must be respected!
-        # Rock the boat between [-1.0, 1.0]:
-        value = 0.63 + 0.25*(0.5 - random.random())
-        values[0] = max(min(value, 1.0), -1.0)
-
-    def value_shape(self):
-        return []
 
 
 class StateEquationSolver():
@@ -75,6 +38,8 @@ class StateEquationSolver():
         self.spatial_control = self.set_function(spatial_control, self.V)
 
         # Time parameters:
+        # TODO: Use a time-steps array instead:
+        # Share between all solvers. Very concrete!
         self.T = T
         self.time_steps = steps
         self.dt = self.T/self.time_steps
@@ -105,6 +70,9 @@ class StateEquationSolver():
         
         # Class parameters:
         self.newton_step_rel_tolerance = 1.0e-6
+
+        # Initialize the storage for the saved state equation steps:
+        self.saved_steps = None
 
         # Switch to true to visualize the spatial control:
         if visualize_spatial_control:
@@ -152,12 +120,13 @@ class StateEquationSolver():
             if save_to_file:
                 file << (self.y_n, t)
 
-            t += self.dt
-
             # TODO: Could integrate and find average between (t, t + delta_t) if we wish.
             control_scale = u_t(t)
             self.time_step_system(u_t=control_scale)
             self.y_n.assign(self.y)
+            
+            # Progress in time:
+            t += self.dt
 
         # Save/Save last solution if wanted:
         i+=1
@@ -196,13 +165,6 @@ class StateEquationSolver():
         plt.colorbar(p)
         plt.show()
 
-
-
-def print_mesh():
-    mesh, V = define_unit_square_mesh()
-    fe.plot(mesh)
-    plt.show()
-    print(V)
 
 
 def island_init_cond():
@@ -246,7 +208,7 @@ def random_init_cond():
     print("Done!")
 
     
-def main():
+def state_main():
 
     # random_init_cond()
     island_init_cond()
@@ -258,4 +220,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    state_main()

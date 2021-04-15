@@ -1,6 +1,6 @@
 import fenics as fe
 
-from state_equation import define_unit_square_mesh
+from problem_definitions import define_unit_square_mesh
 
 
 def time_step_system(y_n, dt, t, eps=0.01, mesh=None, V=None, ndof=64):
@@ -41,3 +41,9 @@ def make_single_time_step(y_n=None):
         y_n = fe.interpolate(y_init_expr, V)
 
     time_step_system(y_n, dt=0.01, t=2, mesh=mesh, V=V)
+
+def print_mesh():
+    mesh, V = define_unit_square_mesh()
+    fe.plot(mesh)
+    plt.show()
+    print(V)
