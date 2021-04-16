@@ -85,7 +85,8 @@ class AllenCahnOptimizer():
 
     def __init__(self, y_d: fe.Expression, y_0: fe.UserExpression, u_0: fe.Expression, 
                  spatial_control: fe.Expression, spatial_function_space: fe.FunctionSpace, 
-                 eps=1.0e-1, gamma=0.1, T=1.0, time_steps=10, time_expr_degree=2):
+                 eps=1.0e-1, gamma=0.1, T=1.0, time_steps=10, time_expr_degree=2, 
+                 optimizer_params = [10,0.001,10,1,0.5]):
         # Phase 'strength':
         self.eps = eps
 
@@ -138,8 +139,9 @@ class AllenCahnOptimizer():
         self.gradient_expression: AllenCahnGradient = None
         self.gradient_function: fe.Function = fe.Function(self.time_V)
         
-        # line search initial step length
-        self.alpha = 1.0 
+        # optimizer parameters
+        self.optimizer_params=optimizer_params
+        self.alpha = optimizer_params[3]
 
     @classmethod
     def from_dict(cls, init_dict):
@@ -204,8 +206,8 @@ class AllenCahnOptimizer():
     def line_search(self):
         '''Performs line search in gradient direction, with armijo contions.
         self.u_t is updated with new values'''
-        max_iter=10
-        c = 0.5
+        max_iter=self.optimizer_params[2]
+        c = self.optimizer_params[4]
         with mute():
             old_evaluation = self.objective(self.y_T) # assumes self.y_T is correct
         print(f'old evaluation: {old_evaluation}')
@@ -221,12 +223,15 @@ class AllenCahnOptimizer():
             print(f'new evaluation: {new_evaluation}')
             if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.gradient_function*fe.dx):
                 print(f'Accepted alpha: {self.alpha}')
-                #self.alpha *= 2
+                self.alpha *= 1.5 # Prevent using small steps
                 break
             else:
                 self.alpha /= 2
         else:
-            raise ValueError(f"Line seach did not satisfy armijo conditions in {max_iter} steps.")
+            print(f"Line seach did not satisfy armijo conditions in {max_iter} steps.")
+            self.u_t.assign(old_u_t) # undo step
+            return 0
+        return old_evaluation-new_evaluation
 
     def optimize(self, silent=True):
         '''Optimize u_t
@@ -236,12 +241,18 @@ class AllenCahnOptimizer():
         global mute
         mute = stdout_redirector if silent else normal_print
 
-        max_iter=7
+        # Stopping parameters
+        max_iter=self.optimizer_params[0]
+        tol = self.optimizer_params[1]
+
+        # Loop gradient calcutation and line search
         for i in range(max_iter):
             with mute():
                 self.calculate_gradient()
-            self.line_search()
-            #TODO: implement stopping conditino
+            decreased = self.line_search()
+            if decreased < tol:
+                break
+        return self.u_t
 
     def set_function(self, v, V):
         return v if isinstance(v, fe.Function) else fe.interpolate(v, V)

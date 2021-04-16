@@ -1,3 +1,4 @@
+# Code by: Eli Bendersky: https://eli.thegreenplace.net/2015/redirecting-all-kinds-of-stdout-in-python/
 from contextlib import contextmanager
 import ctypes
 import io
