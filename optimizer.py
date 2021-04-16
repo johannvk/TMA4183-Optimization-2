@@ -6,7 +6,7 @@ import io
 
 from adjoint_equation import AdjointEquationSolver
 from state_equation import StateEquationSolver
-from shut_up_fenics import stdout_redirector as mute
+from shut_up_fenics import stdout_redirector, normal_print
 
 
 class AllenCahnGradient(fe.UserExpression):
@@ -219,10 +219,7 @@ class AllenCahnOptimizer():
             with mute():
                 new_evaluation = self.objective(u_t = new_u_t)
             print(f'new evaluation: {new_evaluation}')
-            #if armijo condition satisfied:
             if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.gradient_function*fe.dx):
-                #be happy, perhaps set new vaiables
-                #self.u_t already set in self.objective :)
                 print(f'Accepted alpha: {self.alpha}')
                 #self.alpha *= 2
                 break
@@ -231,8 +228,15 @@ class AllenCahnOptimizer():
         else:
             raise ValueError(f"Line seach did not satisfy armijo conditions in {max_iter} steps.")
 
-    def optimize(self):
-        max_iter=10
+    def optimize(self, silent=True):
+        '''Optimize u_t
+        silent: decides if output from fenics is printed to terminal'''
+
+        # mute if silent is True
+        global mute
+        mute = stdout_redirector if silent else normal_print
+
+        max_iter=7
         for i in range(max_iter):
             with mute():
                 self.calculate_gradient()

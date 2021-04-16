@@ -39,3 +39,9 @@ def stdout_redirector(stream = io.BytesIO()):
     finally:
         tfile.close()
         os.close(saved_stdout_fd)
+
+class normal_print():
+    def __enter__(self):
+        pass
+    def __exit__(self, *args):
+        pass
