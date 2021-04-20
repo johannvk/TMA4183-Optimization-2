@@ -6,6 +6,7 @@ from optimizer import AllenCahnOptimizer
 
 from problem_definitions import UnitSquareIslandIC, define_unit_square_mesh
 
+
 def make_example_optimizer():
     
     eps = 0.1
@@ -29,7 +30,17 @@ def make_example_optimizer():
     }
 
     allen_cahn_optimizer = AllenCahnOptimizer.from_dict(init_dict)
+    u_t = allen_cahn_optimizer.optimize(silent=False)
 
+    fe.plot(allen_cahn_optimizer.set_function(u_0, allen_cahn_optimizer.time_V), label='initial')
+    plt.legend(title='Original Temporal control')
+    plt.show()
+
+    fe.plot(u_t, label='optimal')
+    plt.legend(title='Optimal Temporal control')
+    plt.show()
+    
+    '''
     J0 = allen_cahn_optimizer.objective()
     print("J0:", J0)
     allen_cahn_optimizer.calculate_gradient()

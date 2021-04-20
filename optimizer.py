@@ -81,7 +81,8 @@ class AllenCahnOptimizer():
 
     def __init__(self, y_d: fe.Expression, y_0: fe.UserExpression, u_0: fe.Expression, 
                  spatial_control: fe.Expression, spatial_function_space: fe.FunctionSpace, 
-                 eps=1.0e-1, gamma=0.1, T=1.0, time_steps=10, time_expr_degree=2):
+                 eps=1.0e-1, gamma=0.1, T=1.0, time_steps=10, time_expr_degree=2, 
+                 optimizer_params = [10, 0.001, 10, 1, 0.5]):
         # Phase 'strength':
         self.eps = eps
 
@@ -193,6 +194,74 @@ class AllenCahnOptimizer():
         # Would be nice if we could cotrol exactly which time-nodes are in
         # self.time_V.
         self.gradient_function.assign(fe.interpolate(self.gradient_expression, self.time_V))
+
+    def line_search(self):
+        '''Performs line search in gradient direction, with armijo contions.
+        self.u_t is updated with new values'''
+        max_iter = self.optimizer_params[2]
+        c = self.optimizer_params[4]
+
+        with mute():
+            old_evaluation = self.objective(self.y_T) # assumes self.y_T is correct
+        print(f'old evaluation: {old_evaluation}')
+
+        old_u_t = self.u_t.copy()
+        new_u_t = old_u_t.copy()
+
+        # TODO: Should maybe Copy, so the gradient function itself is not 
+        #       tarnished?
+        # step = self.gradient_function # .copy()
+        step = fe.Function(self.time_V)
+
+        for i in range(max_iter):
+
+            step.assign(-self.alpha*self.gradient_function)
+
+            # Need to project the sums onto the function space:
+            temp_new_u_t = fe.project(old_u_t + step, self.time_V)
+            new_u_t.assign(temp_new_u_t)
+
+            # TODO: Hva skjer her? Trengs denne linjen?
+            new_u_t = new_u_t.copy()
+
+            with mute():
+                new_evaluation = self.objective(u_t = new_u_t)
+
+            print(f'new evaluation: {new_evaluation}')
+            
+            if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.gradient_function*fe.dx):
+                print(f'Accepted alpha: {self.alpha}')
+                self.alpha *= 1.5 # Prevent using small steps
+                break
+            else:
+                self.alpha /= 2
+        else:
+            print(f"Line seach did not satisfy armijo conditions in {max_iter} steps.")
+            self.u_t.assign(old_u_t) # undo step
+            return 0
+
+        return old_evaluation - new_evaluation
+
+    def optimize(self, silent=True):
+        '''Optimize u_t
+        silent: decides if output from fenics is printed to terminal'''
+
+        # mute if silent is True
+        global mute
+        mute = stdout_redirector if silent else normal_print
+
+        # Stopping parameters
+        max_iter = self.optimizer_params[0]
+        tol = self.optimizer_params[1]
+
+        # Loop gradient calcutation and line search
+        for i in range(max_iter):
+            with mute():
+                self.calculate_gradient()
+            decreased = self.line_search()
+            if decreased < tol:
+                break
+        return self.u_t
 
     def set_function(self, v, V):
         return v if isinstance(v, fe.Function) else fe.interpolate(v, V)
