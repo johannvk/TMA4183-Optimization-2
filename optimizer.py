@@ -1,8 +1,12 @@
 import fenics as fe
 import numpy as np
+import sys
+import os
+import io
 
 from adjoint_equation import AdjointEquationSolver
 from state_equation import StateEquationSolver
+from shut_up_fenics import stdout_redirector, normal_print
 
 
 class AllenCahnGradient(fe.UserExpression):
@@ -134,6 +138,10 @@ class AllenCahnOptimizer():
         # Gradient fe.UserExpression and fe.Function:
         self.gradient_expression: AllenCahnGradient = None
         self.gradient_function: fe.Function = fe.Function(self.time_V)
+        
+        # optimizer parameters
+        self.optimizer_params=optimizer_params
+        self.alpha = optimizer_params[3]
 
     @classmethod
     def from_dict(cls, init_dict):
@@ -195,6 +203,10 @@ class AllenCahnOptimizer():
         # self.time_V.
         self.gradient_function.assign(fe.interpolate(self.gradient_expression, self.time_V))
 
+    def armijo_satisfied(self, new_objective, old_objective, gradient_L2_norm, 
+                         alpha, c_armijo):        
+        return new_objective <= old_objective - self.alpha*c_armijo*gradient_L2_norm
+
     def line_search(self):
         '''Performs line search in gradient direction, with armijo contions.
         self.u_t is updated with new values'''
@@ -212,24 +224,26 @@ class AllenCahnOptimizer():
         #       tarnished?
         # step = self.gradient_function # .copy()
         step = fe.Function(self.time_V)
+        gradient_L2_norm = fe.assemble(self.gradient_function**2*fe.dx)
 
         for i in range(max_iter):
 
             step.assign(-self.alpha*self.gradient_function)
 
             # Need to project the sums onto the function space:
-            temp_new_u_t = fe.project(old_u_t + step, self.time_V)
-            new_u_t.assign(temp_new_u_t)
+            # temp_new_u_t = fe.project(old_u_t + step, self.time_V)
+            new_u_t.assign(fe.project(old_u_t + step, self.time_V))
 
             # TODO: Hva skjer her? Trengs denne linjen?
-            new_u_t = new_u_t.copy()
+            # new_u_t = new_u_t.copy()
 
             with mute():
                 new_evaluation = self.objective(u_t = new_u_t)
 
             print(f'new evaluation: {new_evaluation}')
             
-            if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.gradient_function*fe.dx):
+            # if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.gradient_function*fe.dx):
+            if self.armijo_satisfied(new_evaluation, old_evaluation, gradient_L2_norm, self.alpha, c):
                 print(f'Accepted alpha: {self.alpha}')
                 self.alpha *= 1.5 # Prevent using small steps
                 break
