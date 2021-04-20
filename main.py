@@ -30,7 +30,7 @@ def make_example_optimizer():
     }
 
     allen_cahn_optimizer = AllenCahnOptimizer.from_dict(init_dict)
-    u_t = allen_cahn_optimizer.optimize(silent=True)
+    u_t = allen_cahn_optimizer.optimize(silent=False)
 
     fe.plot(allen_cahn_optimizer.set_function(u_0, allen_cahn_optimizer.time_V), label='initial')
     plt.legend(title='Original Temporal control')

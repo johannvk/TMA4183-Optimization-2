@@ -224,26 +224,24 @@ class AllenCahnOptimizer():
         #       tarnished?
         # step = self.gradient_function # .copy()
         step = fe.Function(self.time_V)
-        gradient_L2_norm = fe.assemble(self.gradient_function**2*fe.dx)
+        gradient_L2_norm_squared = fe.assemble(self.gradient_function**2*fe.dx)
 
-        for i in range(max_iter):
+        print(f"\n||Gradient||^2_(L2): {gradient_L2_norm_squared}\n")
 
+        for _ in range(max_iter):
             step.assign(-self.alpha*self.gradient_function)
 
             # Need to project the sums onto the function space:
-            # temp_new_u_t = fe.project(old_u_t + step, self.time_V)
             new_u_t.assign(fe.project(old_u_t + step, self.time_V))
-
-            # TODO: Hva skjer her? Trengs denne linjen?
-            # new_u_t = new_u_t.copy()
 
             with mute():
                 new_evaluation = self.objective(u_t = new_u_t)
 
             print(f'new evaluation: {new_evaluation}')
             
-            # if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.gradient_function*fe.dx):
-            if self.armijo_satisfied(new_evaluation, old_evaluation, gradient_L2_norm, self.alpha, c):
+            # Made it much more explicit that we are using correct Armijo conditions:
+            if self.armijo_satisfied(new_evaluation, old_evaluation, 
+                                     gradient_L2_norm_squared, self.alpha, c):
                 print(f'Accepted alpha: {self.alpha}')
                 self.alpha *= 1.5 # Prevent using small steps
                 break
@@ -269,10 +267,11 @@ class AllenCahnOptimizer():
         tol = self.optimizer_params[1]
 
         # Loop gradient calcutation and line search
-        for i in range(max_iter):
+        for _ in range(max_iter):
             with mute():
                 self.calculate_gradient()
             decreased = self.line_search()
+            print(f"\nDecreased: {decreased}\n")
             if decreased < tol:
                 break
         return self.u_t
