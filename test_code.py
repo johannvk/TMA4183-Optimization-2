@@ -1,5 +1,5 @@
 import fenics as fe
-
+import matplotlib.pyplot as plt
 from problem_definitions import define_unit_square_mesh
 
 

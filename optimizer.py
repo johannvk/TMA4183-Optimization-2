@@ -1,5 +1,7 @@
 import fenics as fe
 import numpy as np
+import matplotlib.pyplot as plt
+
 import sys
 import os
 import io
@@ -40,9 +42,9 @@ class AllenCahnGradient(fe.UserExpression):
         beta_lower = None; beta_upper = None
 
         min_t = self.ts[0][1]; max_t = self.ts[-1][1]
-        if (eval_t - min_t) < -1.0e-15:
+        if (eval_t - min_t) < -5.0e-10:
             raise ValueError(f"Cannot evaluate gradient at time (t = {eval_t:.4f} < t_min = {min_t:.4f}).")
-        elif (max_t - eval_t) < -1.0e-15:
+        elif (max_t - eval_t) < -5.0e-10:
             raise ValueError(f"Cannot evaluate gradient at time (t_max = {max_t:.4f} < t = {eval_t:.4f}).")
 
         t_lower = -np.inf; t_upper = np.inf
@@ -51,7 +53,7 @@ class AllenCahnGradient(fe.UserExpression):
         # First loop trough and check if any of the adjoint_functions at 
         # evaluated times are 'fe.near()' the evaluation time:
         for (i, t) in self.ts:
-            if fe.near(eval_t, t):
+            if fe.near(eval_t, t, eps=1.0e-10):
                 return [(i, 1.0)]
 
         # Else:
@@ -86,7 +88,7 @@ class AllenCahnOptimizer():
     def __init__(self, y_d: fe.Expression, y_0: fe.UserExpression, u_0: fe.Expression, 
                  spatial_control: fe.Expression, spatial_function_space: fe.FunctionSpace, 
                  eps=1.0e-1, gamma=0.1, T=1.0, time_steps=10, time_expr_degree=2, 
-                 optimizer_params = [10,0.001,10,1,0.5]):
+                 optimizer_params = [10, 0.001, 10, 1, 0.5], problem_name="test"):
         # Phase 'strength':
         self.eps = eps
 
@@ -139,20 +141,28 @@ class AllenCahnOptimizer():
         self.gradient_expression: AllenCahnGradient = None
         self.gradient_function: fe.Function = fe.Function(self.time_V)
         
+        # Prepare storage of gradient norms and objective values:
+        self.gradient_norms = []
+        self.objective_values = []
+        
         # optimizer parameters
         self.optimizer_params=optimizer_params
         self.alpha = optimizer_params[3]
+
+        self.problem_name = problem_name
 
     @classmethod
     def from_dict(cls, init_dict):
         return cls(**init_dict)
     
-    def solve_state_equation(self, u_t: fe.Function=None, save_steps=False, save_file=False, filename=""):
+    def solve_state_equation(self, u_t: fe.Function=None, save_steps=False, save_file=False, filename=None):
         if u_t is None:
             u_t = self.u_t
         
-        if save_file and filename == "":
+        if save_file and filename is None:
             raise ValueError("Filename must be provided in order to save state equation solution to file.")
+        elif save_file:
+            filename = f"problems/{self.problem_name}/" + filename
 
         y_T = self.state_equation.solve(temporal_control=u_t, save_steps=save_steps, 
                                         save_to_file=save_file, filename=filename)
@@ -174,8 +184,8 @@ class AllenCahnOptimizer():
             y_T = self.solve_state_equation(u_t, save_steps=save_steps)
 
         self.y_T.assign(y_T)
-
-        return fe.assemble(self.J_y) + fe.assemble(self.J_u)
+        objective_value = fe.assemble(self.J_y) + fe.assemble(self.J_u)
+        return objective_value
 
     def calculate_gradient(self):
         # Use current control 'self.u_t', and calculate
@@ -203,35 +213,65 @@ class AllenCahnOptimizer():
         # self.time_V.
         self.gradient_function.assign(fe.interpolate(self.gradient_expression, self.time_V))
 
+    def armijo_satisfied(self, new_objective, old_objective, gradient_L2_norm, 
+                         alpha, c_armijo):        
+        return new_objective <= old_objective - self.alpha*c_armijo*gradient_L2_norm
+
     def line_search(self):
         '''Performs line search in gradient direction, with armijo contions.
         self.u_t is updated with new values'''
-        max_iter=self.optimizer_params[2]
+        max_iter = self.optimizer_params[2]
         c = self.optimizer_params[4]
+
         with mute():
             old_evaluation = self.objective(self.y_T) # assumes self.y_T is correct
         print(f'old evaluation: {old_evaluation}')
+
         old_u_t = self.u_t.copy()
         new_u_t = old_u_t.copy()
-        step = self.gradient_function
-        for i in range(max_iter):
+
+        # TODO: Should maybe Copy, so the gradient function itself is not 
+        #       tarnished?
+        # step = self.gradient_function # .copy()
+        step = fe.Function(self.time_V)
+        gradient_L2_norm_squared = fe.assemble(self.gradient_function**2*fe.dx)
+
+        # Store gradient norms:
+        self.gradient_norms.append(gradient_L2_norm_squared**(0.5))
+
+        print(f"\n||Gradient||^2_(L2): {gradient_L2_norm_squared}\n")
+
+        for _ in range(max_iter):
             step.assign(-self.alpha*self.gradient_function)
-            new_u_t.assign(old_u_t + step)
-            new_u_t = new_u_t.copy()
+
+            # Need to project the sums onto the function space:
+            new_u_t.assign(fe.project(old_u_t + step, self.time_V))
+
             with mute():
                 new_evaluation = self.objective(u_t = new_u_t)
+
             print(f'new evaluation: {new_evaluation}')
-            if new_evaluation <= old_evaluation + fe.assemble(-c*self.gradient_function*self.gradient_function*fe.dx):
+            
+            # Made it much more explicit that we are using correct Armijo conditions:
+            if self.armijo_satisfied(new_evaluation, old_evaluation, 
+                                     gradient_L2_norm_squared, self.alpha, c):
                 print(f'Accepted alpha: {self.alpha}')
-                self.alpha *= 1.5 # Prevent using small steps
+                # Prevent using small steps
+                self.alpha *= 1.5 
+
+                # Save the new Objective value:
+                self.objective_values.append(new_evaluation)
                 break
+
             else:
                 self.alpha /= 2
         else:
             print(f"Line seach did not satisfy armijo conditions in {max_iter} steps.")
-            self.u_t.assign(old_u_t) # undo step
+            self.u_t.assign(old_u_t) # Undo Step.
+            # TODO: Why return 0? This ends the optimization I guess.
             return 0
-        return old_evaluation-new_evaluation
+
+        return old_evaluation - new_evaluation
 
     def optimize(self, silent=True):
         '''Optimize u_t
@@ -242,17 +282,53 @@ class AllenCahnOptimizer():
         mute = stdout_redirector if silent else normal_print
 
         # Stopping parameters
-        max_iter=self.optimizer_params[0]
+        max_iter = self.optimizer_params[0]
         tol = self.optimizer_params[1]
 
         # Loop gradient calcutation and line search
-        for i in range(max_iter):
+        for _ in range(max_iter):
             with mute():
                 self.calculate_gradient()
             decreased = self.line_search()
+            print(f"\nDecreased: {decreased}\n")
             if decreased < tol:
+                print(f"\nAbsolute Tolerance {tol:.4f} has been reached.\nEnding Optimization")
                 break
         return self.u_t
 
     def set_function(self, v, V):
         return v if isinstance(v, fe.Function) else fe.interpolate(v, V)
+
+    def plot_gradient_norms(self):
+        from matplotlib.ticker import MaxNLocator
+        
+        fig, axis = plt.subplots(1, 1, figsize=(10, 6))
+        
+        steps = np.arange(len(self.gradient_norms))
+        axis.plot(steps, np.log10(np.array(self.gradient_norms)))
+        
+        axis.set_title("Gradient Norm Convergence")
+        axis.set_xlabel("Steps")
+        axis.set_ylabel(r"$log_{10}\left(||\nabla f(u)||_{L_2(\Omega)}\right)$")
+        
+        # Set Integer Tick Marks for the Steps on the X-axis.
+        axis.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+        plt.show()
+    
+    def plot_objective_values(self):
+        from matplotlib.ticker import MaxNLocator
+        
+        fig, axis = plt.subplots(1, 1, figsize=(10, 6))
+        
+        steps = np.arange(len(self.gradient_norms))
+        axis.plot(steps, np.log10(np.array(self.objective_values)))
+        
+        axis.set_title("Reduced Objective Convergence")
+        axis.set_xlabel("Steps")
+        axis.set_ylabel(r"$log_{10}\left(f(u)\right)$")
+            
+        # Set Integer Tick Marks for the Steps on the X-axis.
+        axis.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+        plt.show()

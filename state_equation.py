@@ -21,7 +21,7 @@ class StateEquationSolver():
 
     def __init__(self, spatial_function_space: fe.FunctionSpace, inital_condition: fe.Expression,
                  spatial_control: fe.Function, T: float, steps=50, eps: float=1.0e-3,
-                 visualize_spatial_control=False, temporal_function_space: fe.FunctionSpace=None):
+                 temporal_function_space: fe.FunctionSpace=None):
 
         self.V = spatial_function_space
 
@@ -74,13 +74,12 @@ class StateEquationSolver():
         # Initialize the storage for the saved state equation steps:
         self.saved_steps = None
 
-        # Switch to true to visualize the spatial control:
-        if visualize_spatial_control:
+    def visualize_spatial_control(self):
             g_plot = fe.plot(self.spatial_control)
             # set  colormap
             g_plot.set_cmap("viridis")
             # add a title to the  plot:
-            plt.title("Spatial Control of solution.")
+            plt.title("Spatial Control of State Equation")
             # add a colorbar:
             plt.colorbar(g_plot)
             plt.show()
@@ -105,7 +104,7 @@ class StateEquationSolver():
         saved_steps = {}
 
         if save_to_file:
-            file = fe.File(f"results_state_equation/{filename}.pvd")
+            file = fe.File(f"{filename}.pvd")
 
         t = 0.0
 
