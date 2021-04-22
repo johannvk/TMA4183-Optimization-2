@@ -130,3 +130,4 @@ dmypy.json
 
 results_state_equation/
 results_adjoint_equation/
+problems/

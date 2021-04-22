@@ -21,7 +21,6 @@ class AdjointEquationSolver():
         self.y_desired = y_desired
 
         # Time parameters:
-        # TODO: Replace with an array of times?
         self.T = T
         self.time_steps = steps
         self.dt = self.T/self.time_steps
@@ -92,7 +91,7 @@ class AdjointEquationSolver():
         saved_steps = {}
 
         if save_to_file:
-            file = fe.File(f"results_adjoint_equation/{filename}.pvd")
+            file = fe.File(f"{filename}.pvd")
 
         t = self.T
         y = fe.Function(self.V)
