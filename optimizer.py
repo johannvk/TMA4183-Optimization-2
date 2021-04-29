@@ -222,6 +222,9 @@ class AllenCahnOptimizer():
         self.u_t is updated with new values'''
         max_iter = self.optimizer_params[2]
         c = self.optimizer_params[4]
+        
+        # TEST TEST:
+        # c = 0.0
 
         with mute():
             old_evaluation = self.objective(self.y_T) # assumes self.y_T is correct
@@ -294,6 +297,7 @@ class AllenCahnOptimizer():
             if decreased < tol:
                 print(f"\nAbsolute Tolerance {tol:.4f} has been reached.\nEnding Optimization")
                 break
+        
         return self.u_t
 
     def set_function(self, v, V):
@@ -324,7 +328,7 @@ class AllenCahnOptimizer():
         
         fig, axis = plt.subplots(1, 1, figsize=(10, 6))
         
-        steps = np.arange(len(self.gradient_norms))
+        steps = np.arange(len(self.objective_values))
         axis.plot(steps, np.log10(np.array(self.objective_values)))
         
         axis.set_title("Reduced Objective Convergence")
