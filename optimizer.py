@@ -88,7 +88,7 @@ class AllenCahnOptimizer():
     def __init__(self, y_d: fe.Expression, y_0: fe.UserExpression, u_0: fe.Expression, 
                  spatial_control: fe.Expression, spatial_function_space: fe.FunctionSpace, 
                  eps=1.0e-1, gamma=0.1, T=1.0, time_steps=10, time_expr_degree=2, 
-                 optimizer_params = [10, 0.001, 10, 1, 0.5], problem_name="test"):
+                 optimizer_params = [10, 0.0001, 10, 1, 0.5], problem_name="test"):
         # Phase 'strength':
         self.eps = eps
 
@@ -311,6 +311,9 @@ class AllenCahnOptimizer():
         axis.set_xlabel("Steps")
         axis.set_ylabel(r"$log_{10}\left(||\nabla f(u)||_{L_2(\Omega)}\right)$")
         
+        # Add grid lines:
+        axis.grid(which="major", axis="both")
+
         # Set Integer Tick Marks for the Steps on the X-axis.
         axis.xaxis.set_major_locator(MaxNLocator(integer=True))
 
@@ -327,7 +330,10 @@ class AllenCahnOptimizer():
         axis.set_title("Reduced Objective Convergence")
         axis.set_xlabel("Steps")
         axis.set_ylabel(r"$log_{10}\left(f(u)\right)$")
-            
+        
+        # Add grid lines:
+        axis.grid(which="major", axis="both")
+
         # Set Integer Tick Marks for the Steps on the X-axis.
         axis.xaxis.set_major_locator(MaxNLocator(integer=True))
 

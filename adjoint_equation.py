@@ -177,8 +177,7 @@ def random_init_cond(ndof=64,T=1.0,steps=10,eps=0.1):
     init_cond = state_equation.RandomNoiseIC(degree=3)
     spatial_control = fe.Expression("5*(x[0] - 0.5)", degree=2)
     se_solver = state_equation.StateEquationSolver(spatial_function_space=V, inital_condition=init_cond,
-                                    spatial_control=spatial_control, T=T, steps=steps, eps=eps,
-                                    visualize_spatial_control=False)
+                                    spatial_control=spatial_control, T=T, steps=steps, eps=eps)
     u_t = fe.Expression("5*x[0]", degree=1)
     se_solver.solve(u_t, save_steps=True, save_to_file=False, filename="random_IC_1")
     se_solver.plot_solution()

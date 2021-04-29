@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from optimizer import AllenCahnOptimizer
 
-from problem_definitions import UnitSquareIslandIC, define_unit_square_mesh, RandomUnitSquareQuadrantIC
+from problem_definitions import UnitSquareIslandIC, define_unit_square_mesh, RandomUnitSquareQuadrantIC, UnitSquareQuadrantIC
 
 
 def mock_problem():
@@ -65,7 +65,8 @@ def constructed_problem_1(ndof=32):
     init_dict = {
         "spatial_function_space": UnitSquare_V,
         "y_d": temp_y_d,
-        "y_0": RandomUnitSquareQuadrantIC(),
+       #"y_0": RandomUnitSquareQuadrantIC(degree=3),
+        "y_0": UnitSquareQuadrantIC(degree=3),
         "u_0": u_d,
         "spatial_control": bump_spatial_control,
         "eps": eps,
@@ -77,7 +78,7 @@ def constructed_problem_1(ndof=32):
 
     allen_cahn_optimizer = AllenCahnOptimizer.from_dict(init_dict)
     allen_cahn_optimizer.state_equation.visualize_spatial_control()
-
+    
     # Run once to find the end state:
     actual_y_d = allen_cahn_optimizer.solve_state_equation(save_file=save_files, filename=f"Test{testnumber}_desired_state") 
 
@@ -93,13 +94,6 @@ def constructed_problem_1(ndof=32):
 
     # Set the desired end state to the one found from solving the state-equation
     # with the desired control 'u_d':
-    """
-    allen_cahn_optimizer.y_d = actual_y_d
-
-    # Set a new starting control function:
-    allen_cahn_optimizer.u_t = allen_cahn_optimizer.\
-                               set_function(u_0, allen_cahn_optimizer.time_V)
-    """
     # Define a new inital temporal control:
     u_0 = fe.Expression("1.0", degree=2)
 
@@ -166,7 +160,7 @@ def constructed_problem_2(ndof=32):
     # absolute decrease in objective value.
 
     # Big Eps:
-    eps = 0.5
+    eps = 0.1
     
     # Small Gamma:
     gamma = 0.01
@@ -174,7 +168,6 @@ def constructed_problem_2(ndof=32):
     bump_spatial_control = fe.Expression("sin(pi*x[0])*sin(pi*x[1]) - 0.5", degree=2)
 
     # Construct the desired control:
-    # u_d = fe.Expression("sin(2*pi*x[0])", degree=2)
     u_d = fe.Expression("-1*(x[0] + 1)*(x[0] - 1)", degree=2)
 
     temp_y_d = fe.Expression("1", degree=2)
