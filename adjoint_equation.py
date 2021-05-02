@@ -102,7 +102,7 @@ class AdjointEquationSolver():
             if save_to_file:
                 file << (self.p_n, t)
             
-            y.assign(self.y[self.time_steps-i][1])
+            y.assign(self.y[self.time_steps-i-1][1])
             
             self.time_step_system()
             self.p_n.assign(self.p_sol)
