@@ -12,9 +12,10 @@ def main():
 
     # prob.constructed_problem_2()
 
-    prob.constructed_problem_3(testnumber=8, save_files=True)
+    # prob.constructed_problem_3(testnumber=8, save_files=True)
+
+    prob.constructed_problem_4() 
     
-    pass
 
 if __name__ == "__main__":
     main()

@@ -34,6 +34,26 @@ class UnitSquareIslandIC(fe.UserExpression):
     def value_shape(self):
         return []
 
+class CheckerIC(fe.UserExpression):
+    def __init__(high_level=0.99, low_level=-0.99, **kwargs):
+        #self.high_level = high_level
+        #self.low_level = low_level
+
+        super().__init__(**kwargs)
+
+    def eval(self, values, x):
+        b = 2
+        if ((b*x[0])//1)%2 == ((b*x[1])//1)%2:
+            values[0] = -1#self.high_level
+        else:
+            values[0] = 1#self.low_level
+        # Homogeneous Neumann Conditions must be respected!
+        if x[0]<0.1 or x[0]>0.9 or x[1]<0.1 or x[1]>0.9:
+            values[0] = 1
+
+    def value_shape(self):
+        return []
+
 
 class RandomNoiseIC(fe.UserExpression):
     def __init__(self, **kwargs):
@@ -43,7 +63,8 @@ class RandomNoiseIC(fe.UserExpression):
     def eval(self, values, x):
         # Homogeneous Neumann Conditions must be respected!
         # Rock the boat between [-1.0, 1.0]:
-        value = 0.63 + 0.25*(0.5 - random.random())
+        #value = 0.63 + 0.25*(0.5 - random.random())
+        value = 2*(0.5 - random.random())
         values[0] = max(min(value, 1.0), -1.0)
 
     def value_shape(self):

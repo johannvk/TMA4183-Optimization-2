@@ -88,7 +88,7 @@ class AllenCahnOptimizer():
     def __init__(self, y_d: fe.Expression, y_0: fe.UserExpression, u_0: fe.Expression, 
                  spatial_control: fe.Expression, spatial_function_space: fe.FunctionSpace, 
                  eps=1.0e-1, gamma=0.1, T=1.0, time_steps=10, time_expr_degree=2, 
-                 optimizer_params = [10, 0.0001, 10, 1, 0.5], problem_name="test"):
+                 optimizer_params = [10, 0.0001, 10, 1, 1e-4], problem_name="test"):
         # Phase 'strength':
         self.eps = eps
 
@@ -215,7 +215,7 @@ class AllenCahnOptimizer():
 
     def armijo_satisfied(self, new_objective, old_objective, gradient_L2_norm, 
                          alpha, c_armijo):        
-        return new_objective <= old_objective - self.alpha*c_armijo*gradient_L2_norm
+        return new_objective <= old_objective - self.alpha*c_armijo*gradient_L2_norm or new_objective <= 0.8*old_objective
 
     def line_search(self):
         '''Performs line search in gradient direction, with armijo contions.

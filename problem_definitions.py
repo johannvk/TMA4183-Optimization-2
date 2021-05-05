@@ -419,3 +419,152 @@ def constructed_problem_3(ndof=32, testnumber=1, save_files = False):
 
     print("DONE!")
 
+
+
+def constructed_problem_4(ndof=32, testnumber=323, save_files = False):
+    construct_end_state = False
+    # Rebound, near the optimal end-state without much us of 'u'.
+
+    # Would like to lower the tolerance/End on gradient norm instead of 
+    # absolute decrease in objective value.
+
+    # Big Eps:
+    eps = 25
+    
+    # Small Gamma:
+    gamma = 0.001
+
+    # The same as y_0:
+    # square_spatial_control = IC.UnitSquareIslandIC(min_x=0.2, min_y=0.3, degree=3)
+    d_min_x = d_min_y = 0.2
+    orig_min_x = orig_min_y = 0.3
+    # Almost the same as y_d, but can drive downward outside the desired "high" region:
+    square_spatial_control = IC.CheckerIC(degree=3)
+
+    # Want to Contract the initial square condition:
+    y_0 = IC.RandomNoiseIC(degree=3)
+    # y_0 = IC.UnitSquareQuadrantIC(degree=3)
+
+    y_d = IC.CheckerIC(degree=3)
+
+    T = 0.01
+    time_steps = 25
+
+    u_d = fe.Expression("1", T=T, degree=3)
+
+    _, UnitSquare_V = IC.define_unit_square_mesh(ndof=ndof)
+
+    init_dict = {
+        "spatial_function_space": UnitSquare_V,
+        "y_d": y_d,
+        "y_0": y_0,
+        "u_0": u_d,
+        "spatial_control": square_spatial_control,
+        "eps": eps,
+        "gamma": gamma,
+        "time_steps": time_steps,
+        "T": T,
+        "problem_name": "square_y_d",
+        "optimizer_params" : [20, 0.0001, 20, 0.1, 1e-10]
+        }
+
+    allen_cahn_optimizer = AllenCahnOptimizer.from_dict(init_dict)
+    allen_cahn_optimizer.state_equation.visualize_spatial_control()
+
+    if construct_end_state:
+        actual_y_d = allen_cahn_optimizer.solve_state_equation(save_file=False)
+
+        # Reset the desired state, and the initial control:
+        allen_cahn_optimizer.y_d = actual_y_d
+
+        # Plot the constructed desired end state:
+        g_plot = fe.plot(fe.project(actual_y_d, allen_cahn_optimizer.V))
+        # set  colormap
+        g_plot.set_cmap("viridis")
+        # add a title to the  plot:
+        plt.title("Naiive Desired y_d End State")
+        # add a colorbar:
+        plt.colorbar(g_plot)
+        plt.show()
+    
+    #u_0 = fe.project(fe.Expression("x[0] < T/2.0 ? 1.0 : 0.0", T=T, degree=2), 
+    u_0 = fe.project(fe.Expression("-10", T=T, degree=2), 
+                     allen_cahn_optimizer.time_V)
+    allen_cahn_optimizer.u_t = u_0.copy()
+
+    # Run once to find the end state for the initial condition u_0:
+    initial_y_T = allen_cahn_optimizer.solve_state_equation(u_t=u_0, 
+                   save_file=save_files, filename=f"Test{testnumber}_initial_control") 
+
+    # Plot the end state from inital control:
+    g_plot = fe.plot(initial_y_T)
+    # set  colormap
+    g_plot.set_cmap("viridis")
+    # add a title to the  plot:
+    plt.title("Initial y_T End State")
+    # add a colorbar:
+    plt.colorbar(g_plot)
+    plt.savefig(f'figs/testnb_{testnumber}_yT_init.pdf')
+    plt.show()
+
+    # Perform the optimization:
+    u_t = allen_cahn_optimizer.optimize(silent=False)
+
+    # Save the last state equation from optimal temporal control:
+    opt_y_T = allen_cahn_optimizer.solve_state_equation(u_t=u_t, 
+                save_file=save_files, filename=f"Test{testnumber}_optimal_control")
+
+    # Display Purposes:
+    allen_cahn_optimizer.plot_gradient_norms()
+    allen_cahn_optimizer.plot_objective_values()
+
+    if construct_end_state:
+        plot_u_d = fe.project(u_d, allen_cahn_optimizer.time_V)
+        fe.plot(plot_u_d, label='u_d(t)')
+        plt.title("Constructing Desired End State Control")
+        plt.xlabel("Time t, [0, T = 2]")
+        plt.ylabel("Temporal Control u_d(t)")
+        plt.legend(title='Constructing Temporal control')
+        plt.savefig(f'figs/testnb_{testnumber}_u_construct.pdf')
+        plt.show()
+
+    fe.plot(u_0, label='Initial')
+    plt.title("Intial Guess Control")
+    plt.xlabel("Time t, [0, T = 2]")
+    plt.ylabel("Temporal Control u(t)")
+    plt.legend(title='Initial Guess Temporal control')
+    plt.savefig(f'figs/testnb_{testnumber}_u0.pdf')
+    plt.show()
+
+    fe.plot(u_t, label='Optimal Control')
+    plt.title("Final, Optimal, Control")
+    plt.xlabel("Time t, [0, T = 2]")
+    plt.ylabel("Temporal Control u(t)")
+    plt.legend(title='Optimal Temporal control')
+    plt.savefig(f'figs/testnb_{testnumber}_u_optimal.pdf')
+    plt.show()
+    
+    # Plot the constructed desired end state:
+    g_plot = fe.plot(allen_cahn_optimizer.y_d)
+    # set  colormap
+    g_plot.set_cmap("viridis")
+    # add a title to the  plot:
+    plt.title("Desired y_d End State")
+    # add a colorbar:
+    plt.colorbar(g_plot)
+    plt.savefig(f'figs/testnb_{testnumber}_yd.pdf')
+    plt.show()
+
+    # Plot the optimized end state:
+    g_plot = fe.plot(opt_y_T)
+    # set  colormap
+    g_plot.set_cmap("viridis")
+    # add a title to the  plot:
+    plt.title("Optimal y_opt_T End State")
+    # add a colorbar:
+    plt.colorbar(g_plot)
+    plt.savefig(f'figs/testnb_{testnumber}_yT_optimal.pdf')
+    plt.show()
+
+    print("DONE!")
+
