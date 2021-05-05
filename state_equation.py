@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from typing import Union
 
 # Local imports:
-from problem_definitions import UnitSquareIslandIC, RandomNoiseIC, define_unit_square_mesh
+from initial_conditions import UnitSquareIslandIC, RandomNoiseIC, define_unit_square_mesh
 
 
 
@@ -197,7 +197,7 @@ def random_init_cond():
     spatial_control = fe.Expression("5*(x[0] - 0.5)", degree=2)
     se_solver = StateEquationSolver(spatial_function_space=V, inital_condition=init_cond,
                                     spatial_control=spatial_control, T=1.0, steps=10, eps=0.1,
-                                    visualize_spatial_control=False)
+                                    )
 
     # Ramp up intensity of control:
     u_t = fe.Expression("5*x[0]", degree=1)
