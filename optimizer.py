@@ -215,7 +215,7 @@ class AllenCahnOptimizer():
 
     def armijo_satisfied(self, new_objective, old_objective, gradient_L2_norm, 
                          alpha, c_armijo):        
-        return new_objective <= old_objective - self.alpha*c_armijo*gradient_L2_norm or new_objective <= 0.8*old_objective
+        return new_objective <= old_objective - self.alpha*c_armijo*gradient_L2_norm
 
     def line_search(self):
         '''Performs line search in gradient direction, with armijo contions.
